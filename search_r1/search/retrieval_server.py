@@ -51,12 +51,12 @@ def pooling(
     attention_mask = None,
     pooling_method = "mean"
 ):
-    if pooling_method == "mean":
+    if pooling_method == "mean": # 认为句子的语义分布在每一个词中，取平均值最能代表整体。
         last_hidden = last_hidden_state.masked_fill(~attention_mask[..., None].bool(), 0.0)
         return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
-    elif pooling_method == "cls":
+    elif pooling_method == "cls": # 只取第一个 Token（[CLS]）对应的 768 维向量，剩下的全丢掉。在 BERT 训练时，[CLS] 被专门设计用来捕捉全句分类信息。
         return last_hidden_state[:, 0]
-    elif pooling_method == "pooler":
+    elif pooling_method == "pooler": # 这是 BERT 类模型在 [CLS] 之上又加了一层全连接层（Dense Layer）后的输出。
         return pooler_output
     else:
         raise NotImplementedError("Pooling method not implemented!")
@@ -64,8 +64,8 @@ def pooling(
 class Encoder:
     def __init__(self, model_name, model_path, pooling_method, max_length, use_fp16):
         self.model_name = model_name
-        self.model_path = model_path
-        self.pooling_method = pooling_method
+        self.model_path = model_path # intfloat/e5-base-v2
+        self.pooling_method = pooling_method # mean
         self.max_length = max_length
         self.use_fp16 = use_fp16
 
@@ -78,13 +78,13 @@ class Encoder:
         if isinstance(query_list, str):
             query_list = [query_list]
 
-        if "e5" in self.model_name.lower():
+        if "e5" in self.model_name.lower(): # E5 系列：要求在文本前加显式前缀。如果是搜索词加 query: ，如果是被检索的内容加 passage: 。
             if is_query:
                 query_list = [f"query: {query}" for query in query_list]
             else:
                 query_list = [f"passage: {query}" for query in query_list]
 
-        if "bge" in self.model_name.lower():
+        if "bge" in self.model_name.lower(): # BGE 系列：通常只在查询端（Query）加一段长指令：Represent this sentence for searching relevant passages:
             if is_query:
                 query_list = [f"Represent this sentence for searching relevant passages: {query}" for query in query_list]
 
@@ -106,7 +106,7 @@ class Encoder:
             )
             query_emb = output.last_hidden_state[:, 0, :]
         else:
-            output = self.model(**inputs, return_dict=True)
+            output = self.model(**inputs, return_dict=True) # [batch_size, sequence_length, hidden_size]
             query_emb = pooling(output.pooler_output,
                                 output.last_hidden_state,
                                 inputs['attention_mask'],
@@ -114,7 +114,7 @@ class Encoder:
             if "dpr" not in self.model_name.lower():
                 query_emb = torch.nn.functional.normalize(query_emb, dim=-1)
 
-        query_emb = query_emb.detach().cpu().numpy()
+        query_emb = query_emb.detach().cpu().numpy() # 切断计算图（Computational Graph）的梯度追踪。
         query_emb = query_emb.astype(np.float32, order="C")
         
         del inputs, output
@@ -217,8 +217,8 @@ class DenseRetriever(BaseRetriever):
         self.corpus = load_corpus(self.corpus_path)
         self.encoder = Encoder(
             model_name = self.retrieval_method,
-            model_path = config.retrieval_model_path,
-            pooling_method = config.retrieval_pooling_method,
+            model_path = config.retrieval_model_path, # intfloat/e5-base-v2
+            pooling_method = config.retrieval_pooling_method, # mean
             max_length = config.retrieval_query_max_length,
             use_fp16 = config.retrieval_use_fp16
         )
@@ -361,8 +361,8 @@ def retrieve_endpoint(request: QueryRequest):
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Launch the local faiss retriever.")
-    parser.add_argument("--index_path", type=str, default="/home/peterjin/mnt/index/wiki-18/e5_Flat.index", help="Corpus indexing file.")
-    parser.add_argument("--corpus_path", type=str, default="/home/peterjin/mnt/data/retrieval-corpus/wiki-18.jsonl", help="Local corpus file.")
+    parser.add_argument("--index_path", type=str, default="/home/hyn/Search-R1/wiki_index/e5_Flat.index", help="Corpus indexing file.")
+    parser.add_argument("--corpus_path", type=str, default="/home/hyn/Search-R1/wiki_index/wiki-18.jsonl", help="Local corpus file.")
     parser.add_argument("--topk", type=int, default=3, help="Number of retrieved passages for one query.")
     parser.add_argument("--retriever_name", type=str, default="e5", help="Name of the retriever model.")
     parser.add_argument("--retriever_model", type=str, default="intfloat/e5-base-v2", help="Path of the retriever model.")

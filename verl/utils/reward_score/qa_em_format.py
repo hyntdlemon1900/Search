@@ -47,18 +47,28 @@ def em_check(prediction, golden_answers):
 
 
 def is_valid_sequence(text):
-    # Find the position of "<|im_start|>assistant" with potential whitespace
-    assistant_pattern = r"<\|im_start\|>assistant\s*"
-    assistant_match = re.search(assistant_pattern, text)
+    """
+    检查生成的文本是否符合预定义的格式序列。
+    预期的格式包括：
+    1. 必须以 "<|im_start|>assistant" 开头。
+    2. 标签必须成对出现且闭合。
+    3. 标签的顺序必须遵循特定的状态机流转：
+       start -> <think> -> ... -> </think> -> <search> -> ... -> </search> -> <information> -> ... -> </information> -> <think> ... -> <answer> -> ... -> </answer> -> end
+    """
+    # 查找 "<|im_start|>assistant" 的位置，允许后面有空白字符
+    # Update: check for 'Assistant:' as well regarding the base model
+    assistant_pattern = r"(<\|im_start\|>assistant|Assistant:)\s*"
+    assistant_match = re.search(assistant_pattern, text, re.IGNORECASE)
     
     if not assistant_match:
         return False, "Missing assistant marker"
     
-    # Extract the content after the assistant marker
+    # 提取 assistant 标记之后的内容
     start_pos = assistant_match.end()
     content = text[start_pos:]
     
     # Check for balanced tags
+    # 检查标签是否平衡（开标签和闭标签数量一致）
     tags_to_check = ["think", "search", "information", "answer"]
     for tag in tags_to_check:
         opening_count = len(re.findall(f"<{tag}>", content))
@@ -66,55 +76,68 @@ def is_valid_sequence(text):
         if opening_count != closing_count:
             return False, f"Mismatch in {tag} tags: {opening_count} opening vs {closing_count} closing tags"
     
-    # Now check for proper sequence pattern and no extraneous content
-    
-    # 1. First split the content by any tags we recognize
+    # 现在检查正确的序列模式，并确保没有多余的内容
+
+    # 1. 首先根据我们识别的任何标签分割内容
+    # 使用捕获组 () 保留分隔符（即标签本身）
     split_pattern = r"(</?(?:think|search|information|answer)>)"
     parts = re.split(split_pattern, content)
     
-    # 2. Keep track of the current position in the expected sequence
+    # 2. 跟踪预期序列中的当前状态
     state = "start"  # start -> think -> search -> information -> think -> ... -> answer -> end
     
-    # 3. Check each part
+    # 3. 检查每一部分（标签或内容）
     for i, part in enumerate(parts):
         # Skip empty parts
+        # 跳过空白部分
         if not part.strip():
             continue
             
-        # Check if this is a tag
+        # 检查这部分是否是一个标签
         if re.match(r"</?(?:think|search|information|answer)>", part):
-            # This is a tag, check if it's valid in the current state
+            # 这是一个标签，检查它在当前状态下是否合法
+
+            # <think> 可以在开始时出现，或者在 <information> 块结束后出现（进入下一轮思考）
             if part == "<think>" and state in ["start", "information"]:
                 state = "in_think"
+            # </think> 只能在 <think> 内部出现，标志思考结束
             elif part == "</think>" and state == "in_think":
                 state = "after_think"
+            # <search> 只能在思考结束后出现（思考决定去搜索）
             elif part == "<search>" and state == "after_think":
                 state = "in_search"
+            # </search> 只能在搜索内部出现
             elif part == "</search>" and state == "in_search":
                 state = "after_search"
+            # <information> 只能在搜索结束后出现（返回搜索结果）
             elif part == "<information>" and state == "after_search":
                 state = "in_information"
+            # </information> 只能在信息块内部出现
             elif part == "</information>" and state == "in_information":
                 state = "information"
+            # <answer> 只能在思考结束后出现（最终得出答案）
             elif part == "<answer>" and state == "after_think":
                 state = "in_answer"
+            # </answer> 只能在答案内部出现，标志结束
             elif part == "</answer>" and state == "in_answer":
                 state = "end"
             else:
                 return False, f"Unexpected tag {part} in state {state}"
         else:
-            # This is content, check if it's valid in the current state
+            # 这是内容文本，检查它在当前状态下是否允许存在
             if state in ["in_think", "in_search", "in_information", "in_answer"]:
-                # Content is allowed inside tags
+                # 在标签对内部，允许存在内容
                 pass
             elif state in ["start", "after_think", "after_search", "information"]:
                 # Only whitespace is allowed between tags
+                # 在标签之间（例如 think 结束和 search 开始之间），只允许空白
                 if part.strip():
                     return False, f"Unexpected content '{part.strip()}' between tags (state: {state})"
             else:
                 return False, f"Unexpected content in state {state}"
     
     # Check final state
+    # 检查最终状态，必须是 "end"（即成功闭合了 answer）
     if state != "end":
         return False, f"Incomplete sequence, ended in state {state}"
         

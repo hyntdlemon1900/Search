@@ -3,8 +3,8 @@ export DATA_DIR='data/nq_search'
 
 WAND_PROJECT='Search-R1'
 
-export BASE_MODEL='meta-llama/Llama-3.2-3B'
-export EXPERIMENT_NAME=nq-search-r1-ppo-llama3.2-3b-em
+# export BASE_MODEL='meta-llama/Llama-3.2-3B'
+# export EXPERIMENT_NAME=nq-search-r1-ppo-llama3.2-3b-em
 # export BASE_MODEL='meta-llama/Llama-3.2-3B-Instruct'
 # export EXPERIMENT_NAME=nq-search-r1-ppo-llama3.2-3b-it-em
 # export BASE_MODEL='meta-llama/Llama-3.1-8B'
@@ -14,8 +14,8 @@ export EXPERIMENT_NAME=nq-search-r1-ppo-llama3.2-3b-em
 
 # export BASE_MODEL='Qwen/Qwen2.5-3B'
 # export EXPERIMENT_NAME=nq-search-r1-ppo-qwen2.5-3b-em
-# export BASE_MODEL='Qwen/Qwen2.5-3B-Instruct'
-# export EXPERIMENT_NAME=nq-search-r1-ppo-qwen2.5-3b-it-em
+export BASE_MODEL='/home/hyn/.cache/modelscope/hub/models/Qwen/Qwen2.5-3B-Instruct'
+export EXPERIMENT_NAME=nq-search-r1-ppo-qwen2.5-3b-it-em
 # export BASE_MODEL='Qwen/Qwen2.5-7B'
 # export EXPERIMENT_NAME=nq-search-r1-ppo-qwen2.5-7b-em
 # export BASE_MODEL='Qwen/Qwen2.5-7B-Instruct'

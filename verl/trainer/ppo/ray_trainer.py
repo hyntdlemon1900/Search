@@ -243,6 +243,10 @@ def compute_data_metrics(batch, use_critic=True):
         } if use_critic else {}),
 
         # response length
+        # 注意：这里的 response_length 是基于 attention_mask 计算的。
+        # 在 Search-R1 流程中，responses 包含了 [模型生成的思考/动作] + [环境返回的搜索结果(Observation)]。
+        # 因此，这个统计量**包含**了检索/搜索内容的长度 (Total Trajectory Length)。
+        # 若需要仅查看模型生成的长度，请参考 loss_mask / info_mask 相关指标（如 state_tokens）。
         'response_length/mean':
             torch.mean(response_length).detach().item(),
         'response_length/max':
@@ -376,7 +380,7 @@ class RayPPOTrainer(object):
         self.train_dataset = RLHFDataset(parquet_files=self.config.data.train_files,
                                          tokenizer=self.tokenizer,
                                          prompt_key=self.config.data.prompt_key,
-                                         max_prompt_length=self.config.data.max_prompt_length,
+                                         max_prompt_length=self.config.data.max_prompt_length, # 4096
                                          filter_prompts=True,
                                          return_raw_chat=self.config.data.get('return_raw_chat', False),
                                          truncation='error')
@@ -722,6 +726,7 @@ class RayPPOTrainer(object):
                 ####################
                 # with _timer('step', timing_raw):
                     else:
+                        # 'input_ids'长度对齐到max_prompt_length=4096，初始prompt最大长度 max_start_length 1024
                         first_input_ids = gen_batch.batch['input_ids'][:, -gen_config.max_start_length:].clone().long()
 
                         with _timer('gen', timing_raw):

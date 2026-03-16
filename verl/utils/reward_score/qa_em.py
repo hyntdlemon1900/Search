@@ -17,6 +17,9 @@ import string
 import random
 
 def normalize_answer(s):
+    """
+    标准化答案：转小写 -> 去标点 -> 去冠词 -> 规范化空格
+    """
     def remove_articles(text):
         return re.sub(r"\b(a|an|the)\b", " ", text)
 
